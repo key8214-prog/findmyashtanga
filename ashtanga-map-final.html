@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수도권 아쉬탕가 요가원 지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#ffffff; --bg2:#f5f5f3; --bg3:#eeede9;
+    --ink:#111111; --ink-mid:#555555; --ink-dim:#aaaaaa;
+    --line:rgba(0,0,0,0.07); --line2:rgba(0,0,0,0.14);
+    --red:#d4442a; --gold:#c9a84c; --sage:#5a7a5e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { font-family:'Noto Sans KR',sans-serif; font-weight:300; background:var(--bg); color:var(--ink); }
+
+  /* ── HEADER ── */
+  header {
+    background:var(--bg); border-bottom:2px solid var(--ink);
+    padding:16px 20px 13px;
+  }
+  .h-inner { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:9px; }
+  .h-eyebrow { font-size:.56rem; letter-spacing:.26em; text-transform:uppercase; color:var(--red); font-weight:400; margin-bottom:5px; }
+  .h-title { font-family:'Cormorant Garamond',serif; font-size:1.65rem; font-weight:300; letter-spacing:.04em; line-height:1; }
+  .h-sub { font-family:'Noto Sans KR',sans-serif; font-size:.56rem; font-weight:200; color:var(--ink-dim); letter-spacing:.16em; display:block; margin-top:5px; text-transform:uppercase; }
+  .h-count { text-align:right; }
+  .h-num { font-family:'Noto Sans KR',sans-serif; font-size:2rem; font-weight:200; color:var(--red); line-height:1; }
+  .h-label { font-size:.52rem; color:var(--ink-dim); letter-spacing:.08em; display:block; margin-top:3px; font-weight:300; }
+  .h-rule { display:flex; align-items:center; gap:10px; padding-top:9px; border-top:1px solid var(--line2); }
+  .h-rule-dot { width:5px; height:5px; border-radius:50%; background:var(--red); flex-shrink:0; }
+  .h-rule-text { font-size:.54rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); font-weight:300; }
+
+  /* ── FILTER BAR ── */
+  #filterbar {
+    background:var(--bg2); border-bottom:1px solid var(--line2);
+    padding:8px 16px;
+    display:flex; gap:5px;
+    flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    position:sticky; top:0; z-index:100;
+  }
+  #filterbar::-webkit-scrollbar { display:none; }
+  .fb { flex-shrink:0; font-family:'Noto Sans KR',sans-serif; font-size:.62rem; font-weight:300; letter-spacing:.04em; padding:5px 11px; border:1.5px solid var(--line2); background:transparent; color:var(--ink-mid); cursor:pointer; transition:all .12s; white-space:nowrap; }
+  .fb:hover { border-color:var(--red); color:var(--red); }
+  .fb.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .fb-sep { flex-shrink:0; width:1px; background:var(--line2); margin:2px 2px; }
+
+  /* ── MAP ── */
+  #map {
+    height:260px;
+    border-bottom:2px solid var(--ink);
+    position:relative;
+  }
+
+  /* ── 재검색 버튼 ── */
+  #researchBtn {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    z-index:800; display:none;
+    background:var(--ink); color:var(--bg); border:none; cursor:pointer;
+    font-family:'Noto Sans KR',sans-serif; font-size:.64rem; font-weight:300;
+    letter-spacing:.08em; padding:8px 16px;
+    box-shadow:3px 3px 0 var(--red); white-space:nowrap; transition:all .15s;
+  }
+  #researchBtn:hover { background:var(--red); box-shadow:3px 3px 0 var(--ink); }
+  #researchBtn.visible { display:block; }
+
+  /* ── 현재위치 버튼 ── */
+  #locateBtn {
+    position:absolute; bottom:12px; right:12px; z-index:400;
+    width:38px; height:38px; background:var(--bg); border:2px solid var(--ink);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:3px 3px 0 var(--ink); transition:all .15s;
+  }
+  #locateBtn:hover { background:var(--red); border-color:var(--red); }
+  #locateBtn:hover svg path, #locateBtn:hover svg circle { stroke:#fff; }
+  #locateBtn.locating { border-color:var(--red); animation:pulse .8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── 반경 필터 ── */
+  #radiusBar {
+    position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+    z-index:400; display:flex;
+    border:2px solid var(--ink); box-shadow:3px 3px 0 var(--ink);
+  }
+  .rb { font-family:'Noto Sans KR',sans-serif; font-size:.58rem; font-weight:300; letter-spacing:.04em; padding:6px 13px; background:var(--bg); color:var(--ink-mid); border:none; border-right:1px solid var(--line2); cursor:pointer; transition:all .12s; white-space:nowrap; }
+  .rb:last-child { border-right:none; }
+  .rb:hover { background:var(--bg2); color:var(--ink); }
+  .rb.on { background:var(--ink); color:var(--bg); }
+
+  /* ── 카드 리스트 ── */
+  #card-list { background:var(--bg); }
+
+  .area-hd {
+    padding:9px 20px 5px; font-size:.56rem; font-weight:300; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--ink-dim); background:var(--bg2);
+    border-top:1px solid var(--line2); border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .area-n { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:.68rem; color:var(--red); }
+
+  .s-card { padding:13px 20px; border-bottom:1px solid var(--line); cursor:pointer; transition:background .1s; }
+  .s-card:hover { background:var(--bg2); }
+  .s-card.active { background:var(--bg2); border-left:3px solid var(--red); padding-left:17px; }
+  .s-name { font-size:.88rem; font-weight:400; margin-bottom:3px; line-height:1.3; }
+  .s-addr { font-size:.63rem; font-weight:300; color:var(--ink-dim); margin-bottom:6px; }
+  .s-dist { font-size:.6rem; font-weight:300; color:var(--red); margin-bottom:5px; }
+  .s-tags { display:flex; gap:4px; flex-wrap:wrap; }
+  .tag { font-size:.57rem; font-weight:300; letter-spacing:.04em; padding:2px 6px; }
+  .tag.certified { border:1.5px solid var(--gold); color:var(--gold); }
+  .tag.lv2    { border:1.5px solid var(--red); color:var(--red); }
+  .tag.lv1    { border:1.5px solid var(--sage); color:var(--sage); }
+  .tag.mysore { border:1.5px solid var(--ink-mid); color:var(--ink-mid); }
+  .tag.no     { border:1.5px solid var(--line2); color:var(--ink-dim); font-style:italic; }
+
+  /* ── 팝업 ── */
+  .leaflet-popup-content-wrapper { background:var(--bg)!important; border-radius:0!important; border:2px solid var(--ink)!important; box-shadow:5px 5px 0 var(--ink)!important; padding:0!important; }
+  .leaflet-popup-tip-container { display:none; }
+  .leaflet-popup-content { margin:0!important; width:258px!important; }
+  .popup-hd { background:var(--ink); padding:12px 16px; }
+  .popup-name { font-family:'Cormorant Garamond',serif; font-size:1.15rem; font-weight:300; letter-spacing:.03em; color:var(--bg); margin-bottom:2px; line-height:1.2; }
+  .popup-addr { font-size:.62rem; font-weight:300; color:rgba(255,255,255,.4); }
+  .popup-body { padding:13px 16px; }
+  .popup-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:10px; }
+  .popup-item label { display:block; font-size:.52rem; font-weight:300; letter-spacing:.16em; text-transform:uppercase; color:var(--red); margin-bottom:1px; }
+  .popup-item span { font-size:.74rem; font-weight:400; color:var(--ink); }
+  .popup-div { border:none; border-top:1px solid var(--line2); margin-bottom:9px; }
+  .popup-tl label { display:block; font-size:.52rem; font-weight:300; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:5px; }
+  .t-chips { display:flex; flex-wrap:wrap; gap:3px; }
+  .t-chip { font-size:.6rem; font-weight:300; padding:2px 7px; border:1.5px solid var(--line2); color:var(--ink-mid); }
+  .popup-link { display:block; margin-top:9px; padding-top:9px; border-top:1px solid var(--line); font-size:.6rem; font-weight:300; color:var(--red); letter-spacing:.06em; text-decoration:none; }
+  .leaflet-popup-close-button { color:rgba(255,255,255,.5)!important; top:8px!important; right:10px!important; font-size:1rem!important; }
+  .leaflet-popup-close-button:hover { color:#fff!important; }
+  .my-loc-dot { width:14px; height:14px; border-radius:50%; background:#3b82f6; border:3px solid #fff; box-shadow:0 0 0 2px #3b82f6, 0 2px 8px rgba(0,0,0,.3); }
+
+  .leaflet-control-attribution { font-size:.48rem!important; }
+  .leaflet-control-zoom { border:2px solid var(--ink)!important; border-radius:0!important; box-shadow:2px 2px 0 var(--ink)!important; }
+  .leaflet-control-zoom a { border-radius:0!important; color:var(--ink)!important; font-weight:300!important; }
+
+  /* 모바일: 헤더 compact */
+  @media(max-width:640px) {
+    .h-rule { display:none; }
+    header { padding:12px 16px 10px; }
+    .h-title { font-size:1.4rem; }
+    .h-num { font-size:1.7rem; }
+    #map { height:240px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="h-inner">
+    <div>
+      <div class="h-eyebrow">Ashtanga Yoga</div>
+      <div class="h-title">
+        수도권 아쉬탕가 요가원
+        <span class="h-sub">Greater Seoul Directory</span>
+      </div>
+    </div>
+    <div class="h-count">
+      <div class="h-num" id="cnt">27</div>
+      <span class="h-label">개 센터</span>
+    </div>
+  </div>
+  <div class="h-rule">
+    <div class="h-rule-dot"></div>
+    <span class="h-rule-text">SYC 공인티처 기준 · 2025</span>
+    <div class="h-rule-dot"></div>
+    <span class="h-rule-text">마이솔 클래스 포함</span>
+  </div>
+</header>
+
+<!-- FILTER -->
+<div id="filterbar">
+  <button class="fb on" data-f="all">전체</button>
+  <button class="fb" data-f="certified">공인티처</button>
+  <button class="fb" data-f="mysore">마이솔</button>
+  <div class="fb-sep"></div>
+  <button class="fb" data-f="서울">서울</button>
+  <button class="fb" data-f="성남분당">성남·분당</button>
+  <button class="fb" data-f="수원">수원</button>
+  <button class="fb" data-f="경기기타">경기</button>
+  <button class="fb" data-f="인천">인천</button>
+</div>
+
+<!-- MAP -->
+<div style="position:relative;">
+  <div id="map"></div>
+  <button id="researchBtn">이 지역에서 재검색</button>
+  <button id="locateBtn" title="내 위치">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="3" stroke="#111" stroke-width="2"/>
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="9" stroke="#111" stroke-width="1.5" stroke-dasharray="2 3"/>
+    </svg>
+  </button>
+  <div id="radiusBar">
+    <button class="rb on" data-r="0">전체</button>
+    <button class="rb" data-r="5">5km</button>
+    <button class="rb" data-r="10">10km</button>
+  </div>
+</div>
+
+<!-- CARD LIST -->
+<div id="card-list"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const studios=[
+  {id:1,region:"서울",area:"강남·서초",name:"아쉬탕가요가스튜디오 (AYS)",address:"서초구 서초동 (강남역 인근)",phone:"02-582-4401",auth:true,level:"lv2",mysore:true,teachers:[{name:"Wooseok Yang",lv:"lv2"}],note:"한국 최초 마이솔 공인티처 직접 지도. 마이솔+레드 클래스 운영.",lat:37.4928,lng:127.0285,website:"http://www.ashtanga.or.kr"},
+  {id:2,region:"서울",area:"강남·서초",name:"아쉬탕가 비디야 (Ashtanga Vidya)",address:"서초구 잠원동 26-8, 5층 (신사역 4번출구)",phone:"02-6052-1542",auth:true,level:"lv2",mysore:true,teachers:[{name:"Choi Hyo Jin",lv:"lv2"},{name:"Gregory Steward",lv:"lv2"},{name:"Myungsun Lim",lv:"lv2"},{name:"Yujung Choi",lv:"lv2"}],note:"Daily Mysore in downtown Seoul. 공인티처 4인. 드롭인 환영, 영어 가능.",lat:37.5146,lng:127.0189,website:"https://www.ashtangavidya.com"},
+  {id:3,region:"서울",area:"강남·서초",name:"아쉬탕가 사다나 요가",address:"서초구 방배천로20길 19, 2층",phone:"02-522-0512",auth:true,level:"lv1",mysore:true,teachers:[{name:"Kim Hee Jeong",lv:"lv1"}],note:"마이솔 클래스 운영.",lat:37.484,lng:126.9839,website:null},
+  {id:4,region:"서울",area:"강남·서초",name:"바바요가 Bhava Yoga",address:"강남구 삼성동 (코엑스 인근)",phone:"010-7902-5794",auth:true,level:"lv2",mysore:false,teachers:[{name:"Seungyeon Hong",lv:"lv2"}],note:"공인티처 운영. 마이솔 여부 직접 확인.",lat:37.5145,lng:127.0503,website:null},
+  {id:5,region:"서울",area:"강남·서초",name:"무이요가 Muisyoga",address:"강남구 논현로85길 5-12, 601호 (역삼)",phone:"010-4647-7064",auth:true,level:"lv2",mysore:false,teachers:[{name:"Kim Tae Bong",lv:"lv2"}],note:"소규모 요가원.",lat:37.4986,lng:127.0369,website:null},
+  {id:6,region:"서울",area:"강남·서초",name:"마이솔서울 (더썬요가 내)",address:"서초구 반포 (더썬요가 내 수련실)",phone:null,auth:false,level:null,mysore:true,teachers:[],note:"평일 오후 1~3시 마이솔 수련실 오픈. 금요일 2·4주만.",lat:37.503,lng:126.998,website:"https://mysoreseoul.modoo.at"},
+  {id:7,region:"서울",area:"용산·성동",name:"사트얌요가서울 Satyam Yoga",address:"용산구 (한남/이태원 인근)",phone:null,auth:true,level:"lv2",mysore:true,teachers:[{name:"Jaesun Choi (Woosun Choi)",lv:"lv2"}],note:"공인티처 직접 운영.",lat:37.537,lng:127.001,website:"https://satyamyogaseoul.com"},
+  {id:8,region:"서울",area:"용산·성동",name:"Ashtanga Yoga Hrdayam",address:"용산구",phone:null,auth:true,level:"lv2",mysore:true,teachers:[{name:"Hojung Audenaerde",lv:"lv2"}],note:"용산구 공인티처 운영.",lat:37.532,lng:126.994,website:null},
+  {id:9,region:"서울",area:"용산·성동",name:"서울VnA 요가원",address:"성동구 고산자로 284, 성동샤르망 308호",phone:"010-9416-5951",auth:true,level:"lv2",mysore:false,teachers:[{name:"Moonsik Seo",lv:"lv2"}],note:"Ashtanga·Hatha·Vinyasa 전문.",lat:37.5583,lng:127.0289,website:null},
+  {id:10,region:"서울",area:"성북·노원",name:"아쉬탕가월곡요가원",address:"성북구 월곡로14길 24, 2층",phone:"010-3659-9057",auth:true,level:"lv2",mysore:true,teachers:[{name:"공인티처 (SYC 등재)",lv:"lv2"}],note:"SYC 등재 확인. 100% 예약제.",lat:37.5997,lng:127.0415,website:"https://litt.ly/ashtangalv"},
+  {id:11,region:"서울",area:"성북·노원",name:"마이요가샬라 MY YOGA SHALA",address:"성북구 동소문로 8, 4층",phone:"010-6535-0157",auth:false,level:null,mysore:true,teachers:[],note:"아쉬탕가 전문 샬라 표방.",lat:37.5887,lng:127.0071,website:null},
+  {id:12,region:"서울",area:"성북·노원",name:"Jyoga / J Yoga",address:"노원구",phone:null,auth:true,level:"lv2",mysore:false,teachers:[{name:"Jaehee Lee",lv:"lv2"},{name:"Kyu Bin Choi",lv:"lv2"}],note:"노원구 공인티처 2인.",lat:37.655,lng:127.063,website:null},
+  {id:13,region:"서울",area:"마포·서대문",name:"요가필드 YogaField",address:"마포구 월드컵로3길 14",phone:"02-6338-5949",auth:false,level:null,mysore:true,teachers:[],note:"아쉬탕가 클래스 포함. 장기 회원 다수.",lat:37.551,lng:126.9121,website:"http://www.yogafield.co.kr"},
+  {id:14,region:"서울",area:"양천·목동",name:"목동하타요가",address:"양천구 목동 405-472번지 2층",phone:"02-2648-8992",auth:true,level:"certified",mysore:true,teachers:[{name:"Dongjin Kim",lv:"certified"},{name:"Hayoung Kim",lv:"lv2"},{name:"Heejung Won",lv:"lv2"}],note:"한국 유일 Certified 등급. 공인티처 3인.",lat:37.5236,lng:126.8737,website:null},
+  {id:15,region:"서울",area:"송파·강동",name:"프라나요가원 (Prana Ashtanga)",address:"송파구 풍납동 399",phone:"02-488-0602",auth:true,level:"lv2",mysore:true,teachers:[{name:"Youngsu Im",lv:"lv2"},{name:"Oh Jieun",lv:"lv2"}],note:"한국 첫 번째 공인티처 운영. 마이솔+레드 클래스.",lat:37.5284,lng:127.1167,website:"http://www.ashtangayoga.co.kr"},
+  {id:16,region:"성남분당",area:"성남·분당·판교",name:"트리스타나 요가 Tristhana",address:"성남시 분당구 판교역로 231 (판교역)",phone:"031-789-3698",auth:true,level:"lv2",mysore:true,teachers:[{name:"Kim Ji Won",lv:"lv2"},{name:"Youngsoo Ha",lv:"lv2"}],note:"아쉬탕가 마이솔 전문 샬라. 주차 편리.",lat:37.4012,lng:127.1086,website:null},
+  {id:17,region:"성남분당",area:"성남·분당·판교",name:"아쉬탕가요가분당",address:"성남시 분당구 수내동 13-3",phone:"031-712-7714",auth:true,level:"lv2",mysore:true,teachers:[{name:"Jung Jin Ju",lv:"lv2"},{name:"Yeong Lee",lv:"lv2"}],note:"SYC Authorized Level 2 분당 대표 센터.",lat:37.3786,lng:127.1151,website:null},
+  {id:18,region:"성남분당",area:"성남·분당·판교",name:"Guru:m Yoga",address:"성남시",phone:null,auth:true,level:"lv2",mysore:false,teachers:[{name:"Han-A Kwon",lv:"lv2"}],note:"성남시 공인티처 운영.",lat:37.39,lng:127.12,website:null},
+  {id:19,region:"수원",area:"수원",name:"아쉬탕가살린요가",address:"수원시 팔달구 광교로 146, 2층",phone:"031-234-1533",auth:false,level:null,mysore:false,teachers:[],note:"정보 직접 확인 필요.",lat:37.2599,lng:127.033,website:null},
+  {id:20,region:"수원",area:"수원",name:"광교 센트럴 요가",address:"수원시 영통구 도청로18번길 26, 2층",phone:"010-9408-1804",auth:true,level:"lv2",mysore:false,teachers:[{name:"Kim young mi",lv:"lv2"}],note:"SYC 등재 공인티처 운영.",lat:37.2876,lng:127.0569,website:null},
+  {id:21,region:"경기기타",area:"의정부",name:"US Yoga Community",address:"의정부시",phone:null,auth:true,level:"lv2",mysore:false,teachers:[{name:"Young Lee (Nikki)",lv:"lv2"}],note:"의정부 공인티처 운영.",lat:37.7381,lng:127.0437,website:null},
+  {id:22,region:"경기기타",area:"남양주",name:"아쉬탕가 요가 다르마 Dharma",address:"남양주시 다산 신도시 중앙로146번길 12-10, 5층",phone:"010-8245-3100",auth:true,level:"lv2",mysore:true,teachers:[{name:"Hong SeungJun",lv:"lv2"}],note:"마이솔 3회 운영 확인.",lat:37.6252,lng:127.154,website:null},
+  {id:23,region:"경기기타",area:"광명",name:"아쉬탕가요가원 (광명)",address:"광명시 하안동 33-6",phone:"02-804-0909",auth:true,level:"lv1",mysore:false,teachers:[{name:"Haeyoung Koo",lv:"lv1"}],note:"광명시 공인티처 운영.",lat:37.4632,lng:126.8803,website:null},
+  {id:24,region:"경기기타",area:"시흥",name:"시흥 아쉬탕가요가원",address:"시흥시 대야동",phone:null,auth:true,level:"lv2",mysore:false,teachers:[{name:"Eunji Shin",lv:"lv2"}],note:"SYC 등재 공인티처.",lat:37.441,lng:126.792,website:null},
+  {id:25,region:"경기기타",area:"부천",name:"부천아쉬탕가요가",address:"부천시 원미구 소향로 35",phone:null,auth:true,level:"lv2",mysore:false,teachers:[{name:"Se Hwan Jang",lv:"lv2"}],note:"SYC 등재 공인티처.",lat:37.5038,lng:126.7515,website:null},
+  {id:26,region:"경기기타",area:"안양",name:"Prana Yoga Centre (안양)",address:"안양시",phone:null,auth:true,level:"lv1",mysore:true,teachers:[{name:"Seung-eun Lee",lv:"lv1"}],note:"Level 1 공인티처. 마이솔 포함.",lat:37.394,lng:126.946,website:null},
+  {id:27,region:"인천",area:"인천",name:"인천 아쉬탕가요가 아사샤",address:"인천 계양구 계산동",phone:"032-548-0038",auth:true,level:"lv2",mysore:false,teachers:[{name:"Yun Jin Heo",lv:"lv2"}],note:"SYC 등재 공인티처.",lat:37.543,lng:126.723,website:null}
+];
+
+const colors={certified:'#c9a84c',lv2:'#d4442a',lv1:'#5a7a5e',none:'#bbbbbb'};
+const authLabel=s=>!s.auth?'없음':({certified:'Certified ★',lv2:'Level 2',lv1:'Level 1'}[s.level]||'-');
+const dotColor=s=>s.auth?(colors[s.level]||colors.none):colors.none;
+function calcDist(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dN=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dN/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+let activeFilter='all',activeRadius=0,userLat=null,userLng=null;
+let mapBounds=null,useMapBounds=false,markers=[],activeId=null;
+let userMarker=null,radiusCircle=null;
+
+const map=L.map('map',{center:[37.52,127.02],zoom:11,zoomControl:true});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',subdomains:'abcd',maxZoom:20}).addTo(map);
+
+map.on('moveend zoomend',()=>{ if(!useMapBounds) document.getElementById('researchBtn').classList.add('visible'); });
+document.getElementById('researchBtn').addEventListener('click',()=>{ mapBounds=map.getBounds(); useMapBounds=true; document.getElementById('researchBtn').classList.remove('visible'); render(); });
+
+document.getElementById('locateBtn').addEventListener('click',()=>{
+  const btn=document.getElementById('locateBtn'); btn.classList.add('locating');
+  map.locate({setView:true,maxZoom:13,enableHighAccuracy:true});
+  map.once('locationfound',e=>{
+    btn.classList.remove('locating'); userLat=e.latlng.lat; userLng=e.latlng.lng;
+    if(userMarker)map.removeLayer(userMarker); if(radiusCircle)map.removeLayer(radiusCircle);
+    userMarker=L.marker(e.latlng,{icon:L.divIcon({html:'<div class="my-loc-dot"></div>',className:'',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(map);
+    if(activeRadius>0) radiusCircle=L.circle(e.latlng,{radius:activeRadius*1000,color:'#3b82f6',weight:1.5,fillColor:'#3b82f6',fillOpacity:.06}).addTo(map);
+    useMapBounds=false; document.getElementById('researchBtn').classList.remove('visible'); render();
+  });
+  map.once('locationerror',()=>{ btn.classList.remove('locating'); alert('위치 정보를 가져올 수 없어요.\n브라우저 위치 권한을 확인해주세요.'); });
+});
+
+document.querySelectorAll('.rb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.rb').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+    activeRadius=parseInt(btn.dataset.r);
+    if(radiusCircle){map.removeLayer(radiusCircle);radiusCircle=null;}
+    if(activeRadius>0&&userLat!==null) radiusCircle=L.circle([userLat,userLng],{radius:activeRadius*1000,color:'#3b82f6',weight:1.5,fillColor:'#3b82f6',fillOpacity:.06}).addTo(map);
+    useMapBounds=false; document.getElementById('researchBtn').classList.remove('visible'); render();
+  });
+});
+
+document.querySelectorAll('.fb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+    activeFilter=btn.dataset.f; activeId=null; useMapBounds=false;
+    document.getElementById('researchBtn').classList.remove('visible'); map.closePopup(); render();
+  });
+});
+
+const matchF=s=>activeFilter==='certified'?s.auth:activeFilter==='mysore'?s.mysore:activeFilter!=='all'?s.region===activeFilter:true;
+const matchR=s=>activeRadius===0||userLat===null?true:calcDist(userLat,userLng,s.lat,s.lng)<=activeRadius;
+const matchB=s=>!useMapBounds||!mapBounds?true:mapBounds.contains([s.lat,s.lng]);
+
+function makeIcon(s,isActive=false){
+  const c=dotColor(s),r=isActive?11:8;
+  const ring=s.mysore?`<circle cx="16" cy="16" r="${r+5}" fill="none" stroke="${c}" stroke-width="1.5" opacity=".3"/>`:'';
+  const pulse=isActive?`<circle cx="16" cy="16" r="${r+8}" fill="none" stroke="${c}" stroke-width="1.5" opacity=".2"/>`:'';
+  return L.divIcon({html:`<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">${pulse}${ring}<circle cx="16" cy="16" r="${r}" fill="${c}" opacity=".92"/><circle cx="16" cy="16" r="${r}" fill="none" stroke="white" stroke-width="${isActive?2:1.5}"/></svg>`,className:'',iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-18]});
+}
+
+function popupHTML(s){
+  const dist=userLat!==null?`<div class="popup-item"><label>내 위치에서</label><span>${calcDist(userLat,userLng,s.lat,s.lng).toFixed(1)} km</span></div>`:'';
+  const tch=s.teachers.length?`<hr class="popup-div"><div class="popup-tl"><label>소속 공인티처 (SYC)</label><div class="t-chips">${s.teachers.map(t=>`<span class="t-chip">${t.name}</span>`).join('')}</div></div>`:'';
+  const lnk=s.website?`<a class="popup-link" href="${s.website}" target="_blank">웹사이트 →</a>`:'';
+  return `<div class="popup-hd"><div class="popup-name">${s.name}</div><div class="popup-addr">${s.address}</div></div><div class="popup-body"><div class="popup-grid"><div class="popup-item"><label>공인티처</label><span>${authLabel(s)}</span></div><div class="popup-item"><label>마이솔</label><span>${s.mysore?'✓ 운영':'미확인'}</span></div><div class="popup-item"><label>지역</label><span>${s.area}</span></div><div class="popup-item"><label>연락처</label><span>${s.phone||'—'}</span></div>${dist}</div>${s.note?`<div style="font-size:.63rem;font-weight:300;color:var(--ink-mid);line-height:1.55;border-top:1px solid var(--line);padding-top:8px;margin-top:2px">${s.note}</div>`:''}${tch}${lnk}</div>`;
+}
+
+function render(){
+  markers.forEach(m=>map.removeLayer(m.marker)); markers=[];
+  const visible=studios.filter(s=>matchF(s)&&matchR(s)&&matchB(s))
+    .map(s=>({...s,dist:userLat!==null?calcDist(userLat,userLng,s.lat,s.lng):null}))
+    .sort((a,b)=>a.dist!==null&&b.dist!==null?a.dist-b.dist:0);
+  document.getElementById('cnt').textContent=visible.length;
+  visible.forEach(s=>{
+    const marker=L.marker([s.lat,s.lng],{icon:makeIcon(s,s.id===activeId)}).addTo(map);
+    marker.bindPopup(popupHTML(s),{maxWidth:280,minWidth:262});
+    marker.on('click',()=>{activeId=s.id;render();scrollToCard(s.id);});
+    markers.push({id:s.id,marker});
+  });
+  renderCards(visible);
+}
+
+function renderCards(list){
+  const el=document.getElementById('card-list');
+  const order=['서울','성남분당','수원','경기기타','인천'];
+  const lbl={서울:'서울',성남분당:'성남·분당·판교',수원:'수원',경기기타:'경기 기타',인천:'인천'};
+  let html='';
+  order.forEach(r=>{
+    const rList=list.filter(s=>s.region===r); if(!rList.length)return;
+    html+=`<div class="area-hd">${lbl[r]}<span class="area-n">${rList.length}곳</span></div>`;
+    rList.forEach(s=>{
+      const isA=s.id===activeId?'active':'';
+      const aTag=s.auth?`<span class="tag ${s.level}">${authLabel(s)}</span>`:`<span class="tag no">공인티처 없음</span>`;
+      const mTag=s.mysore?`<span class="tag mysore">마이솔 ✓</span>`:`<span class="tag no">마이솔 미확인</span>`;
+      const dTag=s.dist!==null?`<div class="s-dist">📍 ${s.dist.toFixed(1)} km</div>`:'';
+      html+=`<div class="s-card ${isA}" data-id="${s.id}" onclick="selectCard(${s.id})">
+        <div class="s-name">${s.name}</div>
+        <div class="s-addr">${s.address}</div>
+        ${dTag}<div class="s-tags">${aTag}${mTag}</div>
+      </div>`;
+    });
+  });
+  el.innerHTML=html;
+}
+
+function selectCard(id){
+  const s=studios.find(x=>x.id===id); activeId=id; render();
+  map.setView([s.lat,s.lng],Math.max(map.getZoom(),14),{animate:true});
+  // 지도 위치로 스크롤
+  document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>{ const m=markers.find(x=>x.id===id); if(m)m.marker.openPopup(); },400);
+}
+
+function scrollToCard(id){
+  setTimeout(()=>{
+    const c=document.querySelector(`.s-card[data-id="${id}"]`);
+    if(c)c.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },80);
+}
+
+render();
+</script>
+</body>
+</html>
